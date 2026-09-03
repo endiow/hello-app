@@ -10,7 +10,7 @@ kind: Pod
 spec:
   containers:
   - name: kaniko
-    image: gcr.m.daocloud.io/kaniko-project/executor:v1.23.2
+    image: gcr.m.daocloud.io/kaniko-project/executor:v1.23.2-debug
     imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
