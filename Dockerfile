@@ -1,4 +1,4 @@
-FROM docker.m.daocloud.io/golang:1.26.2 AS builder
+FROM docker.m.daocloud.io/golang:1.26.2-alpine AS builder
 WORKDIR /app
 RUN go mod init hello-app
 COPY *.go ./
