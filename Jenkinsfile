@@ -1,16 +1,16 @@
 pipeline {
   agent {
     kubernetes {
-      cloud 'Ubuntu-5.12'    
-      inheritFrom 'jenkins-agent'  
-      yamlMergeStrategy merge()    
+      cloud 'Ubuntu-5.12'
+      inheritFrom 'jenkins-agent'
+      yamlMergeStrategy merge()
       yaml '''
 apiVersion: v1
 kind: Pod
 spec:
   containers:
   - name: kaniko
-    image: gcr.m.daocloud.io/kaniko-project/executor:v1.23.2-debug
+    image: gcr.m.daocloud.io/kaniko-project/executor:v1.23.2
     imagePullPolicy: IfNotPresent
     command: ['cat']
     tty: true
@@ -21,11 +21,11 @@ spec:
     }
   }
   options {
-    skipDefaultCheckout(true)  // 关键：关闭Jenkins插件自动checkout，规避git.exe问题
+    skipDefaultCheckout(true)
   }
   environment {
     IMAGE_REPO = "crpi-9jpxgs9322doqt3f.cn-shenzhen.personal.cr.aliyuncs.com/endiow/hello-app"
-    IMAGE_TAG = "${env.GIT_COMMIT.substring(0,8)}"
+    // acr-cred 为用户名密码类型凭证，自动注入 *_USR / *_PSW
     ACR_CREDS = credentials('acr-cred')
   }
   stages {
@@ -40,7 +40,9 @@ spec:
           '''
         }
         script {
-          IMAGE_TAG = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+          // def 局部变量，消除jenkins警告
+          def shortCommit = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+          env.IMAGE_TAG = shortCommit
         }
       }
     }
@@ -48,25 +50,24 @@ spec:
     stage('Kaniko Build & Push') {
       steps {
         container('kaniko') {
-          sh '''
-            # 动态生成 kaniko 需要的 config.json
+          // 使用 """ 三双引号，pipeline变量会被展开
+          sh """
             mkdir -p /kaniko/.docker
             cat > /kaniko/.docker/config.json <<EOF
 {
   "auths": {
-    "crpi-9jpxgs9322doqt3f.cn-shenzhen.personal.cr.aliyuncs.com": {
-      "auth": "$(echo -n "${ACR_CREDS_USR}:${ACR_CREDS_PSW}" | base64)"
+    "${IMAGE_REPO.split('/')[0]}": {
+      "auth": "\$(echo -n "${ACR_CREDS_USR}:${ACR_CREDS_PSW}" | base64)"
     }
   }
 }
 EOF
-
-            kaniko \
-            --dockerfile=Dockerfile \
-            --context=. \
-            --destination=${IMAGE_REPO}:${IMAGE_TAG} \
+            kaniko \\
+            --dockerfile=Dockerfile \\
+            --context=. \\
+            --destination=${IMAGE_REPO}:${IMAGE_TAG} \\
             --registry-mirror=https://docker.m.daocloud.io
-          '''
+          """
         }
       }
     }
