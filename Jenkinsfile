@@ -20,6 +20,9 @@ spec:
 '''
     }
   }
+  options {
+    skipDefaultCheckout(true)  // 关键：关闭Jenkins插件自动checkout，规避git.exe问题
+  }
   environment {
     IMAGE_REPO = "crpi-9jpxgs9322doqt3f.cn-shenzhen.personal.cr.aliyuncs.com/endiow/hello-app"
     IMAGE_TAG = "${env.GIT_COMMIT.substring(0,8)}"
@@ -28,9 +31,8 @@ spec:
   stages {
     stage('Checkout') {
       steps {
-        // 关闭Lightweight checkout后，agent pod内完整拉取代码
-        checkout scm
         sh '''
+          git clone git@github.com:endiow/hello-app.git .
           ls -la
         '''
       }
