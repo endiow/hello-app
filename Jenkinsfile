@@ -9,15 +9,31 @@ pipeline {
     skipDefaultCheckout(true)
   }
   stages {
-    stage('测试') {
+    stage('测试环境') {
       steps {
         sh '''
-          pwd
-          ls -la
-          echo "===== 检查git是否存在 ====="
-          git --version || echo "❌ pod内没有git命令"
-        '''
+pwd
+ls -la
+git --version
+'''
       }
     }
+    stage('拉取业务代码') {
+      steps {
+        sshagent(credentials: ['git-ssh-key']) {
+          sh '''
+rm -rf ./*
+export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+git clone git@github.com:endiow/hello-app.git .
+ls -la
+git log -1
+'''
+        }
+      }
+    }
+  }
+  post {
+    success { echo "✅全部完成" }
+    failure { echo "❌失败" }
   }
 }
