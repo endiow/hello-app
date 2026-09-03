@@ -68,6 +68,7 @@ pipeline {
             namespace: default
           spec:
             backoffLimit: 0
+            ttlSecondsAfterFinished: 300
             template:
               spec:
                 restartPolicy: Never
@@ -105,13 +106,6 @@ pipeline {
   }
 
   post {
-    always {
-      container('jnlp') {
-        sh '''
-        kubectl delete job kaniko-build --ignore-not-found=true
-        '''
-      }
-    }
     success { echo "✅全部完成" }
     failure { echo "❌失败" }
   }
