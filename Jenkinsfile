@@ -56,7 +56,6 @@ pipeline {
         container('jnlp') {
           sh '''
           set -e
-          cd /workspace
           GIT_SHORT_HASH=$(git rev-parse --short HEAD)
           echo "GIT_SHORT_HASH=${GIT_SHORT_HASH}"
 
