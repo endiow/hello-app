@@ -31,10 +31,17 @@ spec:
   stages {
     stage('Checkout') {
       steps {
-        sh '''
-          git clone git@github.com:endiow/hello-app.git .
-          ls -la
-        '''
+        sshagent(credentials: ['git-ssh-key']) {
+          sh '''
+            rm -rf ./*
+            export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+            git clone git@github.com:endiow/hello-app.git .
+            ls -la
+          '''
+        }
+        script {
+          IMAGE_TAG = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+        }
       }
     }
 
