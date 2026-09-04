@@ -97,6 +97,7 @@ spec:
 EOF
 
           cat kaniko-build.yaml
+          kubectl apply -f kaniko-build.yaml
           kubectl wait job kaniko-build --for=condition=Complete --timeout=600s
           kubectl logs job/kaniko-build
           kubectl delete job kaniko-build --ignore-not-found=true
