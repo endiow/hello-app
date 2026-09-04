@@ -64,13 +64,21 @@ pipeline {
           cat kaniko-build.yaml
           kubectl apply -f kaniko-build.yaml
 
-          echo "等待kaniko Pod调度启动..."
-          until kubectl get pods -l batch.kubernetes.io/job-name=kaniko-build 2>/dev/null | grep -v "No resources found"; do
+          echo "等待kaniko Job构建，开启实时日志..."
+          # 循环尝试拉取流式日志，遇到“ContainerCreating”类报错就sleep重试，其他错误才退出
+          timeout 480 bash -c '
+          while true;do
+            kubectl logs -f job/kaniko-build 2>/dev/null
+            ret=$?
+
+            # 0正常结束；1代表容器还没起来，重试；其他错误直接退出循环
+            if [[ $ret -ne 1 ]];then
+              break
+            fi
+            
             sleep 2
           done
-
-          echo "==================== kaniko实时构建日志(流式) ===================="
-          kubectl logs -f job/kaniko-build
+          ' || true
           echo "==================== kaniko日志输出结束 ===================="
 
           kubectl wait job kaniko-build --for=condition=Complete --timeout=600s
