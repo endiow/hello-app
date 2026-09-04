@@ -59,7 +59,9 @@ pipeline {
           set -e
           GIT_SHORT_HASH=$(git rev-parse --short HEAD)
           echo "GIT_SHORT_HASH=${GIT_SHORT_HASH}"
+          #替换yaml模板镜像tag为git哈希，生成本地临时yaml配置文件
           sed "s/{{GIT_SHORT_HASH}}/${GIT_SHORT_HASH}/g" kaniko-build.tpl.yaml > kaniko-build.yaml
+          sed "s/{{GIT_SHORT_HASH}}/${GIT_SHORT_HASH}/g" deploy.tpl.yaml > deploy.yaml
           
           cat kaniko-build.yaml
           kubectl apply -f kaniko-build.yaml
@@ -75,7 +77,7 @@ pipeline {
             if [[ $ret -ne 1 ]];then
               break
             fi
-            
+
             sleep 2
           done
           ' || true
@@ -83,6 +85,22 @@ pipeline {
 
           kubectl wait job kaniko-build --for=condition=Complete --timeout=600s
           kubectl delete job kaniko-build --ignore-not-found=true
+          '''
+        }
+      }
+    }
+
+    stage('部署应用（git hash版本）') {
+      steps {
+        container('jnlp') {
+          sh '''
+          set -e
+          cat deploy.yaml
+          # 使用替换完成的临时部署文件
+          kubectl apply -f deploy.yaml
+          echo "等待Deployment滚动更新就绪"
+          kubectl wait deployment hello-app --for=condition=Available --timeout=120s
+          kubectl get deployment,pod,svc -l app=hello-app
           '''
         }
       }
