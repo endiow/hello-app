@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    jenkins-agent: "true"
+spec:
+  imagePullSecrets:
+  - name: acr-secret
+  containers:
+  - name: jnlp
+    image: crpi-9jpxgs9322doqt3f.cn-shenzhen.personal.cr.aliyuncs.com/endiow/jenkins-agent:v2
+    workingDir: /home/jenkins/agent
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    volumeMounts:
+    - name: ci-workspace-volume
+      mountPath: /workspace
+  volumes:
+  - name: ci-workspace-volume
+    persistentVolumeClaim:
+      claimName: ci-workspace-pvc

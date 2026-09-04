@@ -2,7 +2,8 @@ pipeline {
   agent {
     kubernetes {
       cloud 'Ubuntu-5.12'
-      inheritFrom 'jenkins-agent'
+      // inheritFrom 'jenkins-agent'
+      yamlFile 'jenkins-agent-pod.yaml'
     }
   }
   options {
