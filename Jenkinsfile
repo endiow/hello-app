@@ -5,6 +5,18 @@ pipeline {
       inheritFrom 'jenkins-agent'
     }
   }
+  parameters {
+    booleanParam(
+      name: 'SKIP_BUILD',
+      defaultValue: false,
+      description: '✅只修改k8s配置(deploy.tpl.yaml)勾选，跳过镜像构建；源码修改不要勾选'
+    )
+  }
+  environment {
+    GIT_SHORT_HASH = ''
+    IMG_TAG = ''
+    IMG_REPO = "crpi-9jpxgs9322doqt3f.cn-shenzhen.personal.cr.aliyuncs.com/endiow/hello-app"
+  }
   options {
     skipDefaultCheckout(true)
     timeout(time:10, unit:'MINUTES')
@@ -34,6 +46,25 @@ pipeline {
             ls -la
             git log -1
             '''
+            script {
+              // 赋值给Jenkins环境变量，全局可用
+              GIT_SHORT_HASH = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+              echo "当前commit hash: ${GIT_SHORT_HASH}"
+              if(params.SKIP_BUILD){
+                IMG_TAG = "latest"
+                echo "👉手动跳过构建，部署镜像tag = latest"
+              }else{
+                IMG_TAG = GIT_SHORT_HASH
+                echo "👉执行镜像构建，部署镜像tag = ${GIT_SHORT_HASH}"
+              }
+            }
+
+            sh '''
+            # 生成kaniko job本地临时文件，永远用当前commit hash构建
+            sed "s/{{GIT_SHORT_HASH}}/${GIT_SHORT_HASH}/g" kaniko-build.tpl.yaml > kaniko-build.yaml
+            # 生成部署文件，tag由参数决定
+            sed "s/{{GIT_SHORT_HASH}}/${IMG_TAG}/g" deploy.tpl.yaml > deploy.yaml
+            '''
           }
         }
       }
@@ -53,17 +84,15 @@ pipeline {
     }
 
     stage('kaniko Job构建镜像：git哈希 + latest标签') {
+      when {
+        expression { !params.SKIP_BUILD }
+      }
       steps {
         container('jnlp') {
           sh '''
           set -e
-          GIT_SHORT_HASH=$(git rev-parse --short HEAD)
-          echo "GIT_SHORT_HASH=${GIT_SHORT_HASH}"
-          #替换yaml模板镜像tag为git哈希，生成本地临时yaml配置文件
-          sed "s/{{GIT_SHORT_HASH}}/${GIT_SHORT_HASH}/g" kaniko-build.tpl.yaml > kaniko-build.yaml
-          sed "s/{{GIT_SHORT_HASH}}/${GIT_SHORT_HASH}/g" deploy.tpl.yaml > deploy.yaml
-          
           cat kaniko-build.yaml
+          kubectl delete job kaniko-build --ignore-not-found=true
           kubectl apply -f kaniko-build.yaml
 
           echo "等待kaniko Job构建，开启实时日志..."
