@@ -60,7 +60,7 @@ pipeline {
           GIT_SHORT_HASH=$(git rev-parse --short HEAD)
           echo "GIT_SHORT_HASH=${GIT_SHORT_HASH}"
 
-          kubectl apply -f - <<'EOF'
+          kubectl apply -f - <<EOF
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -94,8 +94,9 @@ spec:
           items:
           - key: .dockerconfigjson
             path: config.json
-'EOF'
+EOF
 
+          cat kaniko-build.yaml
           kubectl wait job kaniko-build --for=condition=Complete --timeout=600s
           kubectl logs job/kaniko-build
           kubectl delete job kaniko-build --ignore-not-found=true
