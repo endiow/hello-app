@@ -9,6 +9,14 @@ pipeline {
     skipDefaultCheckout(true)
     timeout(time:10, unit:'MINUTES')
   }
+  parameters {
+    booleanParam(
+      name: 'SKIP_BUILD',
+      defaultValue: false,
+      description: '勾选：跳过Kaniko镜像构建，部署使用latest标签；要求latest镜像已存在ACR'
+    )
+  }
+
   stages {
     stage('测试环境') {
       steps {
@@ -23,17 +31,39 @@ pipeline {
       }
     }
 
-    stage('拉取业务代码') {
+    stage('拉取业务代码 + 模板预渲染') {
       steps {
         container('jnlp') {
-          sshagent(credentials: ['git-ssh-key']) {
-            sh '''
-            rm -rf ./*
-            export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
-            git clone git@github.com:endiow/hello-app.git .
-            ls -la
-            git log -1
-            '''
+          withEnv(["SKIP_BUILD=${params.SKIP_BUILD}"]) {
+            sshagent(credentials: ['git-ssh-key']) {
+              sh '''
+              rm -rf ./*
+              export GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no"
+              git clone git@github.com:endiow/hello-app.git .
+              ls -la
+              git log -1
+
+              GIT_SHORT_HASH=$(git rev-parse --short HEAD)
+              echo "GIT_SHORT_HASH=${GIT_SHORT_HASH}"
+              echo "SKIP_BUILD=${SKIP_BUILD}"
+
+              # kaniko构建yaml，永远使用git hash，不受SKIP_BUILD影响
+              sed "s/{{GIT_SHORT_HASH}}/${GIT_SHORT_HASH}/g" kaniko-build.tpl.yaml > kaniko-build.yaml
+
+              # =========参数渲染最终deploy.yaml=========
+              if [ "${SKIP_BUILD}" = "true" ]; then
+                IMG_TAG="latest"
+                echo "预渲染：SKIP_BUILD=true，deploy.yaml 使用标签 ${IMG_TAG}"
+                sed "s/{{GIT_SHORT_HASH}}/${IMG_TAG}/g" deploy.tpl.yaml > deploy.yaml
+              else
+                IMG_TAG="${GIT_SHORT_HASH}"
+                echo "预渲染：SKIP_BUILD=false，deploy.yaml 使用标签 ${IMG_TAG}"
+                sed "s/{{GIT_SHORT_HASH}}/${IMG_TAG}/g" deploy.tpl.yaml > deploy.yaml
+              fi
+
+              ls -la
+              '''
+            }
           }
         }
       }
@@ -53,16 +83,13 @@ pipeline {
     }
 
     stage('kaniko Job构建镜像：git哈希 + latest标签') {
+      when {
+        expression { params.SKIP_BUILD == false }
+      }
       steps {
         container('jnlp') {
           sh '''
           set -e
-          GIT_SHORT_HASH=$(git rev-parse --short HEAD)
-          echo "GIT_SHORT_HASH=${GIT_SHORT_HASH}"
-          #替换yaml模板镜像tag为git哈希，生成本地临时yaml配置文件
-          sed "s/{{GIT_SHORT_HASH}}/${GIT_SHORT_HASH}/g" kaniko-build.tpl.yaml > kaniko-build.yaml
-          sed "s/{{GIT_SHORT_HASH}}/${GIT_SHORT_HASH}/g" deploy.tpl.yaml > deploy.yaml
-          
           cat kaniko-build.yaml
           kubectl apply -f kaniko-build.yaml
 
