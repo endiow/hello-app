@@ -60,7 +60,7 @@ pipeline {
           GIT_SHORT_HASH=$(git rev-parse --short HEAD)
           echo "GIT_SHORT_HASH=${GIT_SHORT_HASH}"
 
-          kubectl apply -f - <<EOF
+          cat > kaniko-build.yaml <<EOF
 apiVersion: batch/v1
 kind: Job
 metadata:
