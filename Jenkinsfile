@@ -17,7 +17,7 @@ pipeline {
           pwd
           ls -la
           git --version
-          kubectl --version
+          kubectl version --client
           '''
         }
       }
