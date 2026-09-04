@@ -59,47 +59,21 @@ pipeline {
           set -e
           GIT_SHORT_HASH=$(git rev-parse --short HEAD)
           echo "GIT_SHORT_HASH=${GIT_SHORT_HASH}"
-
-          cat > kaniko-build.yaml <<EOF
-apiVersion: batch/v1
-kind: Job
-metadata:
-  name: kaniko-build
-  namespace: default
-spec:
-  backoffLimit: 0
-  ttlSecondsAfterFinished: 300
-  template:
-    spec:
-      restartPolicy: Never
-      containers:
-      - name: kaniko
-        image: gcr.m.daocloud.io/kaniko-project/executor:v1.23.2
-        args:
-        - --context=/workspace
-        - --destination=crpi-9jpxgs9322doqt3f.cn-shenzhen.personal.cr.aliyuncs.com/endiow/hello-app:${GIT_SHORT_HASH}
-        - --destination=crpi-9jpxgs9322doqt3f.cn-shenzhen.personal.cr.aliyuncs.com/endiow/hello-app:latest
-        volumeMounts:
-        - name: source-pvc
-          mountPath: /workspace
-        - name: docker-config
-          mountPath: /kaniko/.docker
-      volumes:
-      - name: source-pvc
-        persistentVolumeClaim:
-          claimName: ci-workspace-pvc
-      - name: docker-config
-        secret:
-          secretName: acr-secret
-          items:
-          - key: .dockerconfigjson
-            path: config.json
-EOF
-
+          sed "s/{{GIT_SHORT_HASH}}/${GIT_SHORT_HASH}/g" kaniko-build.tpl.yaml > kaniko-build.yaml
+          
           cat kaniko-build.yaml
           kubectl apply -f kaniko-build.yaml
+
+          echo "等待kaniko Pod调度启动..."
+          until kubectl get pods -l batch.kubernetes.io/job-name=kaniko-build 2>/dev/null | grep -v "No resources found"; do
+            sleep 2
+          done
+
+          echo "==================== kaniko实时构建日志(流式) ===================="
+          kubectl logs -f job/kaniko-build
+          echo "==================== kaniko日志输出结束 ===================="
+
           kubectl wait job kaniko-build --for=condition=Complete --timeout=600s
-          kubectl logs job/kaniko-build
           kubectl delete job kaniko-build --ignore-not-found=true
           '''
         }
